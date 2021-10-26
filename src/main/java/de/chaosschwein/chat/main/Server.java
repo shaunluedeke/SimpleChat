@@ -1,15 +1,20 @@
 package de.chaosschwein.chat.main;
 
-import java.io.*;
-import java.net.*;
-import java.util.ArrayList;
+import java.io.DataInputStream;
+import java.io.DataOutputStream;
+import java.io.IOException;
+import java.net.ServerSocket;
+import java.net.Socket;
+import java.net.SocketException;
+import java.net.SocketTimeoutException;
+import java.util.HashMap;
 
 public class Server {
 
     public static void main(String[] args) {
 
-        new Thread(()->{
-            while(true) {
+        new Thread(() -> {
+            while (true) {
                 try {
                     ServerSocket server = new ServerSocket(8888);
                     Socket client = server.accept();
@@ -23,19 +28,20 @@ public class Server {
                 }
             }
         }).start();
+        System.out.println("Server Started!");
     }
 
 }
 
-class ConnectionHandler extends Thread{
+class ConnectionHandler extends Thread {
 
+    private static final HashMap<DataOutputStream, String> clientList = new HashMap<>();
     private final Socket client;
     private DataInputStream in;
     private DataOutputStream out;
-    private static ArrayList<DataOutputStream> clientList = new ArrayList<>();
-    private boolean permConn=false;
+    private boolean permConn = false;
 
-    public ConnectionHandler(Socket client){
+    public ConnectionHandler(Socket client) {
         this.client = client;
     }
 
@@ -52,16 +58,36 @@ class ConnectionHandler extends Thread{
                 String msg = new String(data, 0, len);
 
                 if (msg.startsWith("[LOGIN]")) {
+                    String channel = msg.replace("[LOGIN]", "").split(" ")[0];
+                    String username = msg.replace("[LOGIN]", "").split(" ")[1];
+                    for (DataOutputStream all : clientList.keySet()) {
+                        if (clientList.get(all).equalsIgnoreCase(channel)) {
+                            all.write(("[JOINMSG]" + username).getBytes());
+                            all.flush();
+                        }
+                    }
                     permConn = true;
-                    clientList.add(out);
+                    clientList.put(out, channel);
                 }
                 if (msg.startsWith("[GLOBALMSG]")) {
-                    for (DataOutputStream all : clientList) {
-                        all.write(msg.getBytes());
-                        all.flush();
+                    for (DataOutputStream all : clientList.keySet()) {
+                        if (clientList.get(all).equalsIgnoreCase(msg.split("CHANNEL")[1])) {
+                            all.write(msg.split("CHANNEL")[0].replace("CHANNEL", "").getBytes());
+                            all.flush();
+                        }
                     }
                     out.close();
                     client.close();
+                }
+                if (msg.startsWith("[LOGOUT]")) {
+                    String channel = msg.replace("[LOGOUT]", "").split(" ")[0];
+                    String username = msg.replace("[LOGOUT]", "").split(" ")[1];
+                    for (DataOutputStream all : clientList.keySet()) {
+                        if (clientList.get(all).equalsIgnoreCase(channel)) {
+                            all.write(("[LOGOUTMSG]" + username).getBytes());
+                            all.flush();
+                        }
+                    }
                 }
             }
             if (permConn) {
@@ -69,7 +95,7 @@ class ConnectionHandler extends Thread{
                 clientList.remove(out);
             }
 
-        }catch(SocketTimeoutException | SocketException ey) {
+        } catch (SocketTimeoutException | SocketException ey) {
             if (permConn) {
                 permConn = false;
                 clientList.remove(out);
