@@ -53,7 +53,7 @@ public class Client {
             }
         });
 
-        JTextArea textArea = new JTextArea();
+        JList textArea = new JList();
         textArea.setBounds(0, 0, 300, 330);
 
         JScrollPane scroll = new JScrollPane(textArea);
